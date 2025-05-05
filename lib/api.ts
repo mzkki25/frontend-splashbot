@@ -1,10 +1,12 @@
 // API client for the FastAPI backend
+// import { config } from "dotenv"
+// config()
 
 // Base URL for the API
 const API_BASE_URL = "http://127.0.0.1:8000"
+const FIREBASE_API_KEY = process.env.NEXT_PUBLIC_FIREBASE_API
 
 // Firebase API key for token exchange
-const FIREBASE_API_KEY = "AIzaSyD9NgK4REXF0xAntFNagDtbA2iXADKV1Yg"
 
 export interface SignupRequest {
   email: string
