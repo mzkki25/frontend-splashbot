@@ -1,6 +1,7 @@
 import { Button } from "@/components/ui/button"
 import Link from "next/link"
 import Image from "next/image"
+import { ThemeToggle } from "@/components/theme-toggle"
 
 export default function Home() {
   return (
@@ -18,6 +19,7 @@ export default function Home() {
             <h1 className="text-2xl font-bold">SPLASHBot</h1>
           </div>
           <div className="flex items-center gap-4">
+            <ThemeToggle />
             <Link href="/login">
               <Button variant="outline">Login</Button>
             </Link>

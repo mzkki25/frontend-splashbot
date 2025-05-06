@@ -15,6 +15,7 @@ import ChatMessage from "@/components/chat-message"
 import ChatSidebar from "@/components/chat-sidebar"
 import { useAuthStore, useChatStore } from "@/lib/store"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { ThemeToggle } from "@/components/theme-toggle"
 
 // Add import for ChatOptionTooltip
 import { ChatOptionTooltip } from "@/components/chat-option-tooltip"
@@ -243,7 +244,7 @@ export default function ChatPage() {
       : [
           {
             id: "system-1",
-            role: "system" as "system",
+            role: "system" as const,
             content: "Hello! I'm SPLASHBot, your macroeconomics assistant. How can I help you today?",
             timestamp: new Date().toISOString(),
           },
@@ -302,6 +303,7 @@ export default function ChatPage() {
             <h1 className="text-xl font-semibold">{currentChat ? currentChat.title : "SPLASHBot"}</h1>
           </div>
           <div className="flex items-center gap-2">
+            <ThemeToggle />
             <Button variant="outline" size="icon" onClick={handleNewChat} title="New Chat">
               <Plus className="h-5 w-5" />
             </Button>

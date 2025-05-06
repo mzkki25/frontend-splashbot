@@ -146,3 +146,34 @@
 .prose th {
   @apply bg-gray-100 dark:bg-gray-800;
 }
+
+/* Dark mode adjustments for chat interface */
+.dark .bg-gray-50 {
+  @apply bg-gray-900;
+}
+
+.dark .bg-white {
+  @apply bg-gray-800;
+}
+
+.dark .border {
+  @apply border-gray-700;
+}
+
+.dark .bg-blue-50 {
+  @apply bg-blue-900/20;
+}
+
+/* Improve contrast for chat messages in dark mode */
+.dark [data-role="user"] {
+  @apply bg-blue-900/30;
+}
+
+.dark [data-role="assistant"] {
+  @apply bg-gray-700;
+}
+
+/* Improve file attachment appearance in dark mode */
+.dark .bg-gray-100 {
+  @apply bg-gray-700;
+}
