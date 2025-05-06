@@ -31,12 +31,12 @@ export default function Home() {
       </header>
 
       <main className="flex-1">
-        <section className="py-20 bg-gradient-to-b from-blue-50 to-white">
+        <section className="py-20 light:bg-gradient-to-b from-blue-50 to-white dark:dark:bg-gray-900">
           <div className="container flex flex-col items-center text-center">
             <h2 className="text-4xl font-bold tracking-tight sm:text-5xl md:text-6xl">
-              Your AI Assistant for <span className="text-blue-600">Macroeconomics</span>
+            <span className="dark:text-gray-300">Your AI Assistant for</span> <span className="text-blue-600 dark:text-blue-300">Macroeconomics</span>
             </h2>
-            <p className="mt-6 text-lg text-gray-600 max-w-3xl">
+            <p className="mt-6 text-lg text-gray-600 dark:text-gray-300 max-w-3xl">
               SPLASHBot helps you understand global and Indonesian macroeconomics through intelligent conversations.
               Upload PDFs and images for enhanced context and insights.
             </p>
@@ -50,7 +50,7 @@ export default function Home() {
           </div>
         </section>
 
-        <section className="py-16 container">
+        <section className="py-16 container light:bg-gradient-to-b dark:bg-gray-900">
           <h3 className="text-3xl font-bold text-center mb-12">Key Features</h3>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
             <div className="flex flex-col items-center text-center p-6 rounded-lg border">
@@ -71,7 +71,7 @@ export default function Home() {
                 </svg>
               </div>
               <h4 className="text-xl font-semibold mb-2">AI-Powered Conversations</h4>
-              <p className="text-gray-600">
+              <p className="text-gray-600 dark:text-gray-300">
                 Get accurate answers to your macroeconomics questions using advanced AI technology.
               </p>
             </div>
@@ -97,7 +97,7 @@ export default function Home() {
                 </svg>
               </div>
               <h4 className="text-xl font-semibold mb-2">PDF Upload</h4>
-              <p className="text-gray-600">
+              <p className="text-gray-600 dark:text-gray-300">
                 Upload economic reports and papers for more contextual and informed responses.
               </p>
             </div>
@@ -121,14 +121,14 @@ export default function Home() {
                 </svg>
               </div>
               <h4 className="text-xl font-semibold mb-2">Image Analysis</h4>
-              <p className="text-gray-600">Upload charts, graphs, and economic visualizations for AI interpretation.</p>
+              <p className="text-gray-600 dark:text-gray-300">Upload charts, graphs, and economic visualizations for AI interpretation.</p>
             </div>
           </div>
         </section>
       </main>
 
       <footer className="border-t py-6">
-        <div className="container text-center text-gray-500">
+      <div className="container text-center text-gray-500 dark:text-white">
           <p>© {new Date().getFullYear()} SPLASHBot. All rights reserved.</p>
         </div>
       </footer>

@@ -10,6 +10,11 @@ const inter = Inter({ subsets: ["latin"] })
 export const metadata: Metadata = {
   title: "SPLASHBot - Macroeconomics Chatbot",
   description: "AI Chatbot for Global and Indonesian Macroeconomics",
+  icons: {
+    icon: "/splashbot-logo.png",
+    shortcut: "/favicon.ico",
+    apple: "/apple-touch-icon.png",
+  },
 }
 
 export default function RootLayout({

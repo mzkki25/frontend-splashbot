@@ -59,7 +59,7 @@ export default function ChatSidebar({
               <div
                 key={chat.id}
                 className={`relative rounded-md transition-colors ${
-                  currentChatId === chat.id ? "bg-blue-100" : "hover:bg-gray-100"
+                  currentChatId === chat.id ? "bg-blue-100 dark:text-black" : "hover:bg-blue-100 dark:hover:text-black"
                 }`}
                 onMouseEnter={() => setHoveredChatId(chat.id)}
                 onMouseLeave={() => setHoveredChatId(null)}
@@ -68,7 +68,7 @@ export default function ChatSidebar({
                 <div className="p-3 pr-10 cursor-pointer">
                   <div className="font-medium truncate">{chat.title}</div>
                   <SafeClientOnly fallback={<div className="text-xs text-gray-500">Loading date...</div>}>
-                    <div className="text-xs text-gray-500">
+                    <div className="text-xs light:text-gray-500 dark:text-gray-100">
                       {formatDistanceToNow(new Date(chat.timestamp), { addSuffix: true })}
                     </div>
                   </SafeClientOnly>

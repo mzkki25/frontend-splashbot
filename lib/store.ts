@@ -22,6 +22,8 @@ export interface ChatMessage {
     size?: number
     url?: string
   }
+  created_at?: string
+  references?: string[]
 }
 
 export interface ChatSession {
@@ -378,18 +380,20 @@ export const useChatStore = create<ChatState>()(
             {
               prompt: content,
               file_id: fileId,
-              chat_options: get().chatOption, // Add this line to include the chat option
+              chat_options: get().chatOption, // Include the chat option
             },
             idToken,
           )
 
-          // Create assistant message
+          // Create assistant message with created_at and references
           const assistantMessage: ChatMessage = {
             id: `assistant-${Date.now()}`,
             role: "assistant",
             content: chatResponse.response,
             timestamp: new Date().toISOString(),
             file: chatResponse.file_url ? { url: chatResponse.file_url } : undefined,
+            created_at: chatResponse.created_at,
+            references: chatResponse.references,
           }
 
           // Add assistant message to chat

@@ -3,7 +3,7 @@
 const API_BASE_URL = "http://127.0.0.1:8000"
 const FIREBASE_API_KEY = process.env.NEXT_PUBLIC_FIREBASE_API
 
-// Firebase API key for token exchange
+// API client for the FastAPI backend
 
 export interface SignupRequest {
   email: string
@@ -41,9 +41,12 @@ export interface ChatRequest {
   chat_options?: string // Add this line
 }
 
+// Update the ChatResponse interface to include created_at and references
 export interface ChatResponse {
   response: string
   file_url?: string
+  created_at?: string
+  references?: string[]
 }
 
 export interface ChatHistoryItem {
