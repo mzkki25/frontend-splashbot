@@ -9,80 +9,162 @@ import { Card } from "@/components/ui/card"
 import { useToast } from "@/components/ui/use-toast"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Sheet, SheetContent } from "@/components/ui/sheet"
-import { Loader2, Send, Upload, FileText, ImageIcon, Menu, X, LogOut, Plus } from "lucide-react"
-import { useRouter } from "next/navigation"
+import { Loader2, Send, Upload, FileText, ImageIcon, Menu, X, LogOut } from "lucide-react"
+import { useRouter, useSearchParams } from "next/navigation"
 import ChatMessage from "@/components/chat-message"
 import ChatSidebar from "@/components/chat-sidebar"
-import { useAuthStore, useChatStore } from "@/lib/store"
+import { useStore } from "@/lib/store"
+import { api } from "@/lib/api"
+import {
+  clearAuthData,
+  getIdToken,
+  getCurrentChatSession,
+  generateChatSessionId,
+  storeCurrentChatSession,
+  waitForTokenReady,
+} from "@/lib/auth"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { ThemeToggle } from "@/components/theme-toggle"
-
-// Add import for ChatOptionTooltip
 import { ChatOptionTooltip } from "@/components/chat-option-tooltip"
 
-// Update the ChatPage component to include chat options
+const CHAT_OPTIONS = [
+  "General Macroeconomics",
+  "2 Wheels",
+  "4 Wheels",
+  "Retail General",
+  "Retail Beauty",
+  "Retail FnB",
+  "Retail Drugstore",
+]
+
 export default function ChatPage() {
   const [input, setInput] = useState("")
-  const [selectedFile, setSelectedFile] = useState<File | null>(null)
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false)
+  const [selectedFile, setSelectedFile] = useState<File | null>(null)
+  const [uploadedFileId, setUploadedFileId] = useState<string | null>(null)
+  const [isUploading, setIsUploading] = useState(false)
+  const [initialLoadComplete, setInitialLoadComplete] = useState(false)
 
   const fileInputRef = useRef<HTMLInputElement>(null)
   const messagesEndRef = useRef<HTMLDivElement>(null)
+
   const { toast } = useToast()
   const router = useRouter()
+  const searchParams = useSearchParams()
 
-  // Auth store
-  const { isAuthenticated, logout } = useAuthStore()
-
-  // Chat store
+  // Get state from store
   const {
-    currentChatId,
-    chatSessions,
+    currentChat,
+    chatHistory,
     isLoading,
+    setIsLoading,
+    addMessage,
+    setChatHistory,
+    createNewChat,
     chatOption,
     setChatOption,
-    createNewChat,
-    sendMessage,
-    deleteChat,
-    clearAllChats,
-    loadChatHistory,
     loadChatMessages,
-    setCurrentChatId,
-  } = useChatStore()
+  } = useStore()
 
-  // Define chat options
-  const chatOptions = [
-    "General Macroeconomics",
-    "2 Wheels",
-    "4 Wheels",
-    "Retail General",
-    "Retail Beauty",
-    "Retail FnB",
-    "Retail Drugstore",
-  ]
-
-  // Check if file upload should be disabled
-  const isFileUploadDisabled = chatOption !== "General Macroeconomics"
-
-  // Check authentication and load chat history
+  // Watch for URL changes to load the correct chat
   useEffect(() => {
-    if (!isAuthenticated) {
-      router.push("/login")
-    } else {
-      // Load chat history
-      loadChatHistory()
+    const chatId = searchParams.get("id")
+    if (chatId && initialLoadComplete && (!currentChat || currentChat.id !== chatId)) {
+      console.log("URL changed, loading chat:", chatId)
+      loadChatMessages(chatId)
     }
-  }, [isAuthenticated, router, loadChatHistory])
+  }, [searchParams, initialLoadComplete, currentChat, loadChatMessages])
 
-  // Get current chat session
-  const currentChat = currentChatId ? chatSessions[currentChatId] : null
+  // Check if user is authenticated
+  useEffect(() => {
+    const initializeChat = async () => {
+      const idToken = getIdToken()
+      if (!idToken) {
+        console.log("No ID token found, redirecting to login")
+        router.push("/login")
+        return
+      }
+
+      console.log("User authenticated, loading chat data")
+
+      // Wait for token to be ready before making API calls
+      await waitForTokenReady()
+
+      try {
+        // Load chat history
+        await loadChatHistoryData()
+
+        // Check for chat ID in URL
+        const chatId = searchParams.get("id")
+        if (chatId) {
+          await loadChatMessages(chatId)
+        } else {
+          // Initialize with current chat session or create new one
+          const currentSessionId = getCurrentChatSession()
+          if (currentSessionId) {
+            await loadChatMessages(currentSessionId)
+          } else {
+            createNewChat()
+          }
+        }
+      } catch (error) {
+        console.error("Error initializing chat:", error)
+        toast({
+          title: "Error",
+          description: "Failed to initialize chat. Please try refreshing the page.",
+          variant: "destructive",
+        })
+      } finally {
+        setInitialLoadComplete(true)
+      }
+    }
+
+    if (!initialLoadComplete) {
+      initializeChat()
+    }
+  }, [initialLoadComplete, router, searchParams])
 
   // Scroll to bottom of messages
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" })
   }, [currentChat?.messages])
 
-  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const loadChatHistoryData = async () => {
+    // Add this guard to prevent multiple calls
+    if (isLoading) return
+
+    try {
+      setIsLoading(true)
+      const idToken = getIdToken()
+      if (!idToken) return
+
+      // Wait for token to be ready
+      await waitForTokenReady()
+
+      const history = await api.getChatHistory(idToken)
+
+      // Convert to our format
+      const formattedHistory = history.map((item) => ({
+        id: item.chat_session_id,
+        title: item.title,
+        timestamp: item.timestamp,
+        messages: [], // We'll load messages only when needed
+      }))
+
+      setChatHistory(formattedHistory)
+    } catch (error) {
+      console.error("Failed to load chat history:", error)
+      toast({
+        title: "Error",
+        description: "Failed to load chat history. Please try again.",
+        variant: "destructive",
+      })
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
+  const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0] || null
 
     if (!file) {
@@ -122,31 +204,122 @@ export default function ChatPage() {
     }
 
     setSelectedFile(file)
-    toast({
-      title: "File selected",
-      description: `${file.name} (${(file.size / 1024).toFixed(2)} KB)`,
-    })
-  }
 
-  const handleSendMessage = async () => {
-    if (!input.trim() && !selectedFile) return
-
+    // Upload the file immediately
     try {
-      // Send message using chat store
-      await sendMessage(input, selectedFile || undefined)
+      setIsUploading(true)
+      const idToken = getIdToken()
+      if (!idToken) {
+        throw new Error("Not authenticated")
+      }
 
-      // Clear input and selected file
-      setInput("")
+      // Wait for token to be ready
+      await waitForTokenReady()
+
+      const uploadResult = await api.uploadFile(file, idToken)
+      setUploadedFileId(uploadResult.file_id)
+
+      toast({
+        title: "File uploaded",
+        description: `${file.name} has been uploaded successfully.`,
+      })
+    } catch (error) {
+      console.error("File upload error:", error)
+      toast({
+        title: "Upload failed",
+        description: "Failed to upload the file. Please try again.",
+        variant: "destructive",
+      })
       setSelectedFile(null)
       if (fileInputRef.current) {
         fileInputRef.current.value = ""
       }
+    } finally {
+      setIsUploading(false)
+    }
+  }
+
+  const handleSendMessage = async () => {
+    if (!input.trim() && !uploadedFileId) return
+
+    // Ensure we have a chat session
+    let chatSessionId = currentChat?.id
+    if (!chatSessionId) {
+      chatSessionId = generateChatSessionId()
+      storeCurrentChatSession(chatSessionId)
+    }
+
+    const userMessage = {
+      id: `user-${Date.now()}`,
+      role: "user",
+      content: input,
+      timestamp: new Date().toISOString(),
+      file: uploadedFileId
+        ? {
+            id: uploadedFileId,
+            name: selectedFile?.name,
+            type: selectedFile?.type,
+            size: selectedFile?.size,
+          }
+        : undefined,
+    }
+
+    addMessage(userMessage)
+    setInput("")
+    setIsLoading(true)
+
+    try {
+      const idToken = getIdToken()
+      if (!idToken) {
+        throw new Error("Not authenticated")
+      }
+
+      // Wait for token to be ready
+      await waitForTokenReady()
+
+      // Prepare request
+      const chatRequest = {
+        prompt: input,
+        chat_options: chatOption,
+      }
+
+      if (uploadedFileId) {
+        chatRequest.file_id = uploadedFileId
+      }
+
+      // Send message to API
+      const response = await api.sendChatMessage(chatSessionId, chatRequest, idToken)
+
+      // Add bot response to chat
+      const botResponse = {
+        id: `assistant-${Date.now()}`,
+        role: "assistant",
+        content: response.response,
+        timestamp: response.created_at || new Date().toISOString(),
+        references: response.references,
+      }
+
+      addMessage(botResponse)
+
+      // Clear selected file after processing
+      setSelectedFile(null)
+      setUploadedFileId(null)
+      if (fileInputRef.current) {
+        fileInputRef.current.value = ""
+      }
+
+      // Refresh chat history to get the updated title
+      loadChatHistoryData()
     } catch (error: any) {
+      console.error("Chat error:", error)
+
       toast({
         title: "Error",
-        description: error.message || "Failed to send message. Please try again.",
+        description: "Failed to send message. Please try again.",
         variant: "destructive",
       })
+    } finally {
+      setIsLoading(false)
     }
   }
 
@@ -158,7 +331,7 @@ export default function ChatPage() {
   }
 
   const handleLogout = () => {
-    logout()
+    clearAuthData()
     toast({
       title: "Logged out",
       description: "You have been successfully logged out.",
@@ -168,15 +341,34 @@ export default function ChatPage() {
 
   const handleDeleteChat = async (chatId: string) => {
     try {
-      await deleteChat(chatId)
-      toast({
-        title: "Chat deleted",
-        description: "The chat has been removed from your history.",
-      })
-    } catch (error: any) {
+      const idToken = getIdToken()
+      if (!idToken) return
+
+      // Call the delete API
+      await waitForTokenReady()
+      const result = await api.deleteChat(chatId, idToken)
+
+      if (result.success) {
+        // Update the local state
+        useStore.getState().deleteChat(chatId)
+
+        toast({
+          title: "Chat deleted",
+          description: "The chat has been removed from your history.",
+        })
+
+        // If the current chat was deleted, create a new one
+        if (currentChat?.id === chatId) {
+          createNewChat()
+          // Update URL to remove the deleted chat ID
+          router.push("/chat")
+        }
+      }
+    } catch (error) {
+      console.error("Failed to delete chat:", error)
       toast({
         title: "Error",
-        description: error.message || "Failed to delete chat. Please try again.",
+        description: "Failed to delete chat. Please try again.",
         variant: "destructive",
       })
     }
@@ -184,79 +376,55 @@ export default function ChatPage() {
 
   const handleClearAllChats = async () => {
     try {
-      await clearAllChats()
-      toast({
-        title: "All chats cleared",
-        description: "Your chat history has been cleared.",
-      })
-    } catch (error: any) {
-      toast({
-        title: "Error",
-        description: error.message || "Failed to clear chat history. Please try again.",
-        variant: "destructive",
-      })
-    }
-  }
+      const idToken = getIdToken()
+      if (!idToken) return
 
-  const handleNewChat = async () => {
-    try {
-      // Generate a new UUID for the chat session and create a new chat
-      await createNewChat()
-      toast({
-        title: "New chat created",
-        description: "You can start a new conversation.",
-      })
-    } catch (error: any) {
-      toast({
-        title: "Error",
-        description: error.message || "Failed to create new chat. Please try again.",
-        variant: "destructive",
-      })
-    }
-  }
+      // Call the clear all API
+      await waitForTokenReady()
+      const result = await api.clearAllChats(idToken)
 
-  const handleSelectChat = async (chatId: string) => {
-    try {
-      // If the chat has no messages, load them
-      const chat = chatSessions[chatId]
-      if (chat && (!chat.messages || chat.messages.length === 0)) {
-        await loadChatMessages(chatId)
+      if (result.success) {
+        // Update the local state
+        useStore.getState().clearAllChats()
+
+        toast({
+          title: "All chats cleared",
+          description: "Your chat history has been cleared.",
+        })
+
+        // Create a new chat
+        createNewChat()
+        // Update URL to remove any chat ID
+        router.push("/chat")
       }
-
-      // Update the current chat ID to switch to the selected chat
-      setCurrentChatId(chatId)
-
-      // Close mobile menu when selecting a chat
-      setIsMobileMenuOpen(false)
-    } catch (error: any) {
+    } catch (error) {
+      console.error("Failed to clear chats:", error)
       toast({
         title: "Error",
-        description: error.message || "Failed to load chat. Please try again.",
+        description: "Failed to clear chat history. Please try again.",
         variant: "destructive",
       })
     }
   }
 
-  // Default welcome message if no current chat
-  const messages =
-    currentChatId && chatSessions[currentChatId]?.messages?.length > 0
-      ? chatSessions[currentChatId].messages
-      : [
-          {
-            id: "system-1",
-            role: "system" as const,
-            content: "Hello! I'm SPLASHBot, your macroeconomics assistant. How can I help you today?",
-            timestamp: new Date().toISOString(),
-          },
-        ]
+  const handleNewChat = () => {
+    // First create the new chat
+    createNewChat()
 
-  // Convert chat sessions to array for sidebar and sort by timestamp (newest first)
-  const chatHistoryArray = Object.values(chatSessions).sort(
-    (a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime(),
-  )
+    // Close mobile menu if open
+    setIsMobileMenuOpen(false)
+
+    // Force a hard navigation to /chat to clear any query parameters
+    // This ensures we properly reset the URL regardless of current state
+    window.location.href = "/chat"
+  }
+
+  const handleChatOptionChange = (value: string) => {
+    setChatOption(value)
+  }
 
   return (
-    <div className="flex h-screen bg-gray-50">
+    <div className="flex h-screen bg-gray-50 dark:bg-gray-900">
       {/* Mobile menu button */}
       <Button
         variant="ghost"
@@ -271,42 +439,33 @@ export default function ChatPage() {
       <Sheet open={isMobileMenuOpen} onOpenChange={setIsMobileMenuOpen}>
         <SheetContent side="left" className="p-0 w-[280px]">
           <ChatSidebar
-            chatHistory={chatHistoryArray}
-            currentChatId={currentChatId}
-            onSelectChat={handleSelectChat}
-            onNewChat={handleNewChat}
+            chatHistory={chatHistory}
             onDeleteChat={handleDeleteChat}
             onClearAllChats={handleClearAllChats}
             onLogout={handleLogout}
+            onNewChat={handleNewChat}
             onClose={() => setIsMobileMenuOpen(false)}
           />
         </SheetContent>
       </Sheet>
 
       {/* Desktop sidebar */}
-      <div className="hidden md:block w-[280px] border-r bg-white">
+      <div className="hidden md:block w-[280px] border-r bg-white dark:bg-gray-800 dark:border-gray-700">
         <ChatSidebar
-          chatHistory={chatHistoryArray}
-          currentChatId={currentChatId}
-          onSelectChat={handleSelectChat}
-          onNewChat={handleNewChat}
+          chatHistory={chatHistory}
           onDeleteChat={handleDeleteChat}
           onClearAllChats={handleClearAllChats}
           onLogout={handleLogout}
+          onNewChat={handleNewChat}
         />
       </div>
 
       {/* Main chat area */}
       <div className="flex-1 flex flex-col">
-        <header className="h-16 border-b bg-white flex items-center justify-between px-4">
-          <div className="flex items-center">
-            <h1 className="text-xl font-semibold">{currentChat ? currentChat.title : "SPLASHBot"}</h1>
-          </div>
+        <header className="h-16 border-b bg-white dark:bg-gray-800 dark:border-gray-700 flex items-center justify-between px-4">
+          <h1 className="text-xl font-semibold">SPLASHBot</h1>
           <div className="flex items-center gap-2">
             <ThemeToggle />
-            <Button variant="outline" size="icon" onClick={handleNewChat} title="New Chat">
-              <Plus className="h-5 w-5" />
-            </Button>
             <Button variant="ghost" size="icon" onClick={handleLogout}>
               <LogOut className="h-5 w-5" />
             </Button>
@@ -317,7 +476,7 @@ export default function ChatPage() {
           {/* Messages area */}
           <ScrollArea className="flex-1 p-4">
             <div className="space-y-4 max-w-3xl mx-auto">
-              {messages.map((message) => (
+              {currentChat?.messages.map((message) => (
                 <ChatMessage key={message.id} message={message} />
               ))}
               <div ref={messagesEndRef} />
@@ -325,10 +484,9 @@ export default function ChatPage() {
           </ScrollArea>
 
           {/* Input area */}
-          <div className="p-4 border-t bg-white">
-            <Card className="max-w-3xl mx-auto">
+          <div className="p-4 border-t bg-white dark:bg-gray-800 dark:border-gray-700">
+            <Card className="max-w-3xl mx-auto dark:bg-gray-800">
               <div className="p-2">
-                {/* Chat options dropdown */}
                 <div className="mb-2">
                   <div className="flex items-center">
                     <Select value={chatOption} onValueChange={setChatOption}>
@@ -336,7 +494,7 @@ export default function ChatPage() {
                         <SelectValue placeholder="Select chat option" />
                       </SelectTrigger>
                       <SelectContent>
-                        {chatOptions.map((option) => (
+                        {CHAT_OPTIONS.map((option) => (
                           <SelectItem key={option} value={option}>
                             {option}
                           </SelectItem>
@@ -346,9 +504,8 @@ export default function ChatPage() {
                     <ChatOptionTooltip />
                   </div>
                 </div>
-
                 {selectedFile && (
-                  <div className="mb-2 p-2 bg-blue-50 rounded-md flex items-center justify-between">
+                  <div className="mb-2 p-2 bg-blue-50 dark:bg-blue-900/30 rounded-md flex items-center justify-between">
                     <div className="flex items-center">
                       {selectedFile.type.includes("pdf") ? (
                         <FileText className="h-5 w-5 text-blue-500 mr-2" />
@@ -357,7 +514,18 @@ export default function ChatPage() {
                       )}
                       <span className="text-sm truncate max-w-[200px]">{selectedFile.name}</span>
                     </div>
-                    <Button variant="ghost" size="icon" onClick={() => setSelectedFile(null)} className="h-6 w-6">
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => {
+                        setSelectedFile(null)
+                        setUploadedFileId(null)
+                        if (fileInputRef.current) {
+                          fileInputRef.current.value = ""
+                        }
+                      }}
+                      className="h-6 w-6"
+                    >
                       <X className="h-4 w-4" />
                     </Button>
                   </div>
@@ -368,7 +536,7 @@ export default function ChatPage() {
                     value={input}
                     onChange={(e) => setInput(e.target.value)}
                     onKeyDown={handleKeyDown}
-                    className="min-h-[60px] resize-none"
+                    className="min-h-[60px] resize-none dark:bg-gray-700"
                   />
                   <div className="flex flex-col gap-2">
                     <Button
@@ -376,14 +544,9 @@ export default function ChatPage() {
                       size="icon"
                       type="button"
                       onClick={() => fileInputRef.current?.click()}
-                      disabled={isLoading || isFileUploadDisabled}
-                      title={
-                        isFileUploadDisabled
-                          ? "File upload is only available for General Macroeconomics"
-                          : "Upload file"
-                      }
+                      disabled={isLoading || isUploading || chatOption !== "General Macroeconomics"}
                     >
-                      <Upload className="h-5 w-5" />
+                      {isUploading ? <Loader2 className="h-5 w-5 animate-spin" /> : <Upload className="h-5 w-5" />}
                       <span className="sr-only">Upload file</span>
                     </Button>
                     <input
@@ -392,13 +555,13 @@ export default function ChatPage() {
                       onChange={handleFileSelect}
                       accept="application/pdf,image/*"
                       className="hidden"
-                      disabled={isFileUploadDisabled}
+                      disabled={chatOption !== "General Macroeconomics"}
                     />
                     <Button
                       size="icon"
                       type="button"
                       onClick={handleSendMessage}
-                      disabled={isLoading || (!input.trim() && !selectedFile)}
+                      disabled={isLoading || isUploading || (!input.trim() && !uploadedFileId)}
                     >
                       {isLoading ? <Loader2 className="h-5 w-5 animate-spin" /> : <Send className="h-5 w-5" />}
                       <span className="sr-only">Send message</span>

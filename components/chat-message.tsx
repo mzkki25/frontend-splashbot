@@ -1,11 +1,11 @@
 import { Avatar } from "@/components/ui/avatar"
 import { Card } from "@/components/ui/card"
-import { FileText, ImageIcon, Bot, User, ExternalLink } from "lucide-react"
+import { FileText, ImageIcon, ExternalLink, Bot, User } from "lucide-react"
 import { formatDistanceToNow } from "date-fns"
-import SafeClientOnly from "@/components/safe-client-only"
 import ReactMarkdown from "react-markdown"
 import remarkGfm from "remark-gfm"
 import rehypeHighlight from "rehype-highlight"
+import SafeClientOnly from "@/components/safe-client-only"
 import type { ChatMessage as ChatMessageType } from "@/lib/store"
 
 interface ChatMessageProps {
@@ -14,6 +14,7 @@ interface ChatMessageProps {
 
 export default function ChatMessage({ message }: ChatMessageProps) {
   const isUser = message.role === "user"
+  const isSystem = message.role === "system"
 
   return (
     <div className={`flex ${isUser ? "justify-end" : "justify-start"}`}>
@@ -21,61 +22,73 @@ export default function ChatMessage({ message }: ChatMessageProps) {
         <Avatar className={`h-8 w-8 ${isUser ? "bg-blue-500" : "bg-green-500"} flex items-center justify-center`}>
           {isUser ? <User className="h-4 w-4 text-white" /> : <Bot className="h-4 w-4 text-white" />}
         </Avatar>
-        <div>
-          <Card className={`p-3 ${isUser ? "bg-blue-50" : "bg-white"}`} data-role={message.role}>
+        <div className="w-full overflow-hidden">
+          <Card className={`p-3 ${isUser ? "bg-blue-50 dark:bg-blue-900" : "bg-white dark:bg-gray-800"}`}>
             {message.file && (
-              <div className="mb-2 p-2 bg-gray-100 rounded-md flex items-center">
-                {message.file.type?.includes("pdf") || message.file.name?.endsWith(".pdf") ? (
+              <div className="mb-2 p-2 bg-gray-100 dark:bg-gray-700 rounded-md flex items-center">
+                {message.file.type?.includes("pdf") ? (
                   <FileText className="h-4 w-4 text-blue-500 mr-2" />
                 ) : (
                   <ImageIcon className="h-4 w-4 text-blue-500 mr-2" />
                 )}
                 <span className="text-xs truncate max-w-[200px]">
-                  {message.file.name || "Attached file"}
-                  {message.file.size && ` (${(message.file.size / 1024).toFixed(2)} KB)`}
+                  {message.file.name} {message.file.size && `(${(message.file.size / 1024).toFixed(2)} KB)`}
                 </span>
               </div>
             )}
-            {message.file?.url &&
-              (message.file.type?.includes("image") || message.file.url.match(/\.(jpeg|jpg|gif|png)$/i)) && (
-                <div className="mt-2 mb-2">
-                  <img
-                    src={message.file.url || "/placeholder.svg"}
-                    alt="Attached image"
-                    className="max-w-full rounded-md"
-                    style={{ maxHeight: "200px" }}
-                  />
-                </div>
-              )}
-            <div className="w-full">
+            <div className="w-full break-words">
               {isUser ? (
-                message.content
+                <div className="whitespace-pre-wrap">{message.content}</div>
               ) : (
-                <div className="prose prose-sm max-w-none dark:prose-invert">
+                <div className="prose prose-sm max-w-none dark:prose-invert overflow-auto">
                   <ReactMarkdown
                     remarkPlugins={[remarkGfm]}
                     rehypePlugins={[rehypeHighlight]}
+                    components={{
+                      // Override pre to add scrolling for code blocks
+                      pre: ({ node, ...props }) => (
+                        <pre className="overflow-x-auto p-4 bg-gray-100 dark:bg-gray-900 rounded-md my-4" {...props} />
+                      ),
+                      // Override code to ensure inline code doesn't break layout
+                      code: ({ node, inline, ...props }) =>
+                        inline ? (
+                          <code className="bg-gray-100 dark:bg-gray-900 px-1 py-0.5 rounded text-sm" {...props} />
+                        ) : (
+                          <code {...props} />
+                        ),
+                      // Ensure tables can scroll horizontally
+                      table: ({ node, ...props }) => (
+                        <div className="overflow-x-auto">
+                          <table className="border-collapse border border-gray-300 dark:border-gray-700" {...props} />
+                        </div>
+                      ),
+                      // Make sure links don't overflow
+                      a: ({ node, ...props }) => (
+                        <a className="text-blue-600 dark:text-blue-400 break-all" {...props} />
+                      ),
+                    }}
                   >
                     {message.content}
                   </ReactMarkdown>
                 </div>
               )}
             </div>
-            {!isUser && message.references && message.references.length > 0 && (
-              <div className="mt-3 pt-2 border-t border-gray-200">
-                <p className="text-xs font-medium text-gray-500 mb-1">Referensi:</p>
-                <ul className="text-xs text-gray-600 space-y-1">
-                  {message.references.map((reference, index) => (
-                    <li key={index} className="flex items-start dark:text-white">
-                      <ExternalLink className="h-3 w-3 text-gray-400 mr-1 mt-0.5 flex-shrink-0" />
+
+            {/* References section */}
+            {message.references && message.references.length > 0 && (
+              <div className="mt-3 pt-2 border-t border-gray-200 dark:border-gray-700">
+                <p className="text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">References:</p>
+                <ul className="text-xs text-blue-600 dark:text-blue-400 space-y-1">
+                  {message.references.map((ref, index) => (
+                    <li key={index} className="flex items-center">
+                      <ExternalLink className="h-3 w-3 mr-1 inline flex-shrink-0" />
                       <a
-                        href={reference}
+                        href={ref}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="hover:text-blue-600 hover:underline truncate"
-                        title={reference}
+                        className="truncate hover:underline break-all"
                       >
-                        {reference.length > 60 ? `${reference.substring(0, 60)}...` : reference}
+                        {ref}
                       </a>
                     </li>
                   ))}
@@ -84,7 +97,7 @@ export default function ChatMessage({ message }: ChatMessageProps) {
             )}
           </Card>
           <SafeClientOnly fallback={<div className="text-xs text-gray-500 mt-1 px-1">Loading time...</div>}>
-            <div className="text-xs text-gray-500 mt-1 px-1">
+            <div className="text-xs text-gray-500 dark:text-gray-400 mt-1 px-1">
               {formatDistanceToNow(new Date(message.timestamp), { addSuffix: true })}
             </div>
           </SafeClientOnly>

@@ -2,7 +2,7 @@
 
 import type React from "react"
 
-import { useState, useEffect } from "react"
+import { useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -10,30 +10,25 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { useToast } from "@/components/ui/use-toast"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
-import { useAuthStore } from "@/lib/store"
+import { handleRegister } from "@/lib/auth"
+import AuthFormError from "@/components/auth-form-error"
 
 export default function RegisterPage() {
+  const [isLoading, setIsLoading] = useState(false)
   const [formData, setFormData] = useState({
     username: "",
     email: "",
     password: "",
     confirmPassword: "",
   })
+  const [formError, setFormError] = useState("")
   const { toast } = useToast()
   const router = useRouter()
-
-  const { signup, isLoading, isAuthenticated } = useAuthStore()
-
-  // Redirect if already authenticated
-  useEffect(() => {
-    if (isAuthenticated) {
-      router.push("/chat")
-    }
-  }, [isAuthenticated, router])
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target
     setFormData((prev) => ({ ...prev, [name]: value }))
+    setFormError("") // Clear error when user types
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -41,95 +36,72 @@ export default function RegisterPage() {
 
     // Form validation
     if (!formData.username.trim()) {
-      toast({
-        title: "Validation Error",
-        description: "Username cannot be empty",
-        variant: "destructive",
-      })
+      setFormError("Username cannot be empty")
       return
     }
 
     if (!formData.email.trim()) {
-      toast({
-        title: "Validation Error",
-        description: "Email cannot be empty",
-        variant: "destructive",
-      })
+      setFormError("Email cannot be empty")
       return
     }
 
     // Email format validation
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
     if (!emailRegex.test(formData.email)) {
-      toast({
-        title: "Validation Error",
-        description: "Please enter a valid email address",
-        variant: "destructive",
-      })
+      setFormError("Please enter a valid email address")
       return
     }
 
     if (!formData.password.trim()) {
-      toast({
-        title: "Validation Error",
-        description: "Password cannot be empty",
-        variant: "destructive",
-      })
+      setFormError("Password cannot be empty")
       return
     }
 
     // Password strength validation
     if (formData.password.length < 6) {
-      toast({
-        title: "Validation Error",
-        description: "Password must be at least 6 characters long",
-        variant: "destructive",
-      })
+      setFormError("Password must be at least 6 characters long")
       return
     }
 
     if (formData.password !== formData.confirmPassword) {
-      toast({
-        title: "Validation Error",
-        description: "Passwords do not match",
-        variant: "destructive",
-      })
+      setFormError("Passwords do not match")
       return
     }
 
+    setIsLoading(true)
+
     try {
-      // Call signup function from auth store
-      await signup(formData.email, formData.username, formData.password)
+      // Call the register function
+      const result = await handleRegister(formData.username, formData.email, formData.password)
 
-      // Show success message
-      toast({
-        title: "Registration successful",
-        description: "Your account has been created. You can now log in.",
-      })
+      if (result.success) {
+        toast({
+          title: "Registration successful",
+          description: "Your account has been created. You can now log in.",
+        })
 
-      // Redirect to login page
-      router.push("/login")
-    } catch (error: any) {
-      // Handle different types of errors
-      if (error.message.includes("email-already-in-use")) {
-        toast({
-          title: "Registration failed",
-          description: "This email is already registered. Please use a different email or try logging in.",
-          variant: "destructive",
-        })
-      } else if (error.message.includes("username-already-in-use")) {
-        toast({
-          title: "Registration failed",
-          description: "This username is already taken. Please choose a different username.",
-          variant: "destructive",
-        })
+        // Redirect to login page
+        router.push("/login")
       } else {
-        toast({
-          title: "Registration failed",
-          description: error.message || "There was an error creating your account. Please try again.",
-          variant: "destructive",
-        })
+        setFormError("Registration failed. Please try again.")
       }
+    } catch (error: any) {
+      console.error("Registration error:", error)
+
+      // Handle different types of errors
+      if (error.message.includes("email-already-in-use") || error.message.includes("already registered")) {
+        setFormError("This email is already registered. Please use a different email or try logging in.")
+      } else if (error.message.includes("username-already-in-use") || error.message.includes("already taken")) {
+        setFormError("This username is already taken. Please choose a different username.")
+      } else if (error.message.includes("invalid-email")) {
+        setFormError("The email address is not valid.")
+      } else if (error.message.includes("weak-password")) {
+        setFormError("The password is too weak. Please use a stronger password.")
+      } else {
+        setFormError("There was an error creating your account. Please try again.")
+      }
+    } finally {
+      setIsLoading(false)
     }
   }
 
@@ -190,6 +162,8 @@ export default function RegisterPage() {
                 onChange={handleChange}
               />
             </div>
+
+            {formError && <AuthFormError message={formError} />}
           </CardContent>
           <CardFooter className="flex flex-col space-y-4">
             <Button type="submit" className="w-full" disabled={isLoading}>

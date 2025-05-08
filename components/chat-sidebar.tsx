@@ -4,32 +4,41 @@ import { Button } from "@/components/ui/button"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Trash2, LogOut, X, Plus } from "lucide-react"
 import { formatDistanceToNow } from "date-fns"
-import { useState } from "react"
+import React, { useState } from "react"
+import { useRouter } from "next/navigation"
 import SafeClientOnly from "@/components/safe-client-only"
 import type { ChatSession } from "@/lib/store"
 
 interface ChatSidebarProps {
   chatHistory: ChatSession[]
-  currentChatId: string | null
-  onSelectChat: (chatId: string) => void
-  onNewChat: () => void
   onDeleteChat: (chatId: string) => void
   onClearAllChats: () => void
   onLogout: () => void
+  onNewChat: () => void
   onClose?: () => void
 }
 
-export default function ChatSidebar({
+export default React.memo(function ChatSidebar({
   chatHistory,
-  currentChatId,
-  onSelectChat,
-  onNewChat,
   onDeleteChat,
   onClearAllChats,
   onLogout,
+  onNewChat,
   onClose,
 }: ChatSidebarProps) {
   const [hoveredChatId, setHoveredChatId] = useState<string | null>(null)
+  const router = useRouter()
+
+  // Replace with this improved version that ensures proper navigation
+  const handleChatClick = (chatId: string) => {
+    // Navigate to the chat with a hard navigation to ensure URL is updated
+    window.location.href = `/chat?id=${chatId}`
+
+    // Close the sidebar on mobile if needed
+    if (onClose) {
+      onClose()
+    }
+  }
 
   return (
     <div className="flex flex-col h-full">
@@ -58,22 +67,20 @@ export default function ChatSidebar({
             {chatHistory.map((chat) => (
               <div
                 key={chat.id}
-                className={`relative rounded-md transition-colors ${
-                  currentChatId === chat.id ? "bg-blue-100 dark:text-black" : "hover:bg-blue-100 dark:hover:text-black"
-                }`}
+                className="relative rounded-md hover:bg-gray-100 transition-colors dark:hover:text-black"
                 onMouseEnter={() => setHoveredChatId(chat.id)}
                 onMouseLeave={() => setHoveredChatId(null)}
-                onClick={() => onSelectChat(chat.id)}
               >
-                <div className="p-3 pr-10 cursor-pointer">
+                {/* Changed from Link to div with onClick handler */}
+                <div className="p-3 pr-10 cursor-pointer" onClick={() => handleChatClick(chat.id)}>
                   <div className="font-medium truncate">{chat.title}</div>
                   <SafeClientOnly fallback={<div className="text-xs text-gray-500">Loading date...</div>}>
-                    <div className="text-xs light:text-gray-500 dark:text-gray-100">
+                    <div className="text-xs text-gray-500 dark:hover:text-black">
                       {formatDistanceToNow(new Date(chat.timestamp), { addSuffix: true })}
                     </div>
                   </SafeClientOnly>
                 </div>
-                {(hoveredChatId === chat.id || currentChatId === chat.id) && (
+                {(hoveredChatId === chat.id || true) && (
                   <Button
                     variant="ghost"
                     size="icon"
@@ -112,4 +119,4 @@ export default function ChatSidebar({
       </div>
     </div>
   )
-}
+})

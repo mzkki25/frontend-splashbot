@@ -1,3 +1,5 @@
+// Form validation functions
+
 export const validateEmail = (email: string): { valid: boolean; message?: string } => {
   if (!email.trim()) {
     return { valid: false, message: "Email cannot be empty" }

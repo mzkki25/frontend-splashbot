@@ -2,7 +2,7 @@
 
 import type React from "react"
 
-import { useState, useEffect } from "react"
+import { useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -10,28 +10,25 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { useToast } from "@/components/ui/use-toast"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
-import { useAuthStore } from "@/lib/store"
+import { handleLogin } from "@/lib/auth"
+import { useStore } from "@/lib/store"
+import AuthFormError from "@/components/auth-form-error"
 
 export default function LoginPage() {
+  const [isLoading, setIsLoading] = useState(false)
   const [formData, setFormData] = useState({
     email: "",
     password: "",
   })
+  const [formError, setFormError] = useState("")
   const { toast } = useToast()
   const router = useRouter()
-
-  const { login, isLoading, isAuthenticated } = useAuthStore()
-
-  // Redirect if already authenticated
-  useEffect(() => {
-    if (isAuthenticated) {
-      router.push("/chat")
-    }
-  }, [isAuthenticated, router])
+  const setUser = useStore((state) => state.setUser)
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target
     setFormData((prev) => ({ ...prev, [name]: value }))
+    setFormError("") // Clear error when user types
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -39,28 +36,31 @@ export default function LoginPage() {
 
     // Form validation
     if (!formData.email.trim()) {
-      toast({
-        title: "Validation Error",
-        description: "Email or username cannot be empty",
-        variant: "destructive",
-      })
+      setFormError("Email or username cannot be empty")
       return
     }
 
     if (!formData.password.trim()) {
-      toast({
-        title: "Validation Error",
-        description: "Password cannot be empty",
-        variant: "destructive",
-      })
+      setFormError("Password cannot be empty")
       return
     }
 
-    try {
-      // Call login function from auth store
-      await login(formData.email, formData.password)
+    // Prevent multiple submissions
+    if (isLoading) return
 
-      // Show success message
+    setIsLoading(true)
+
+    try {
+      console.log("Attempting login with:", formData.email)
+
+      // Call the login function
+      const { userId, idToken } = await handleLogin(formData.email, formData.password)
+
+      console.log("Login successful, userId:", userId)
+
+      // Set user in store
+      setUser({ id: userId })
+
       toast({
         title: "Login successful",
         description: "Welcome back to SPLASHBot!",
@@ -69,26 +69,22 @@ export default function LoginPage() {
       // Redirect to chat page
       router.push("/chat")
     } catch (error: any) {
+      console.error("Login error:", error)
+
       // Handle different types of errors
-      if (error.message.includes("auth/user-not-found")) {
-        toast({
-          title: "Login failed",
-          description: "User not found. Please check your email or username.",
-          variant: "destructive",
-        })
-      } else if (error.message.includes("auth/wrong-password")) {
-        toast({
-          title: "Login failed",
-          description: "Incorrect password. Please try again.",
-          variant: "destructive",
-        })
+      if (error.message.includes("not found")) {
+        setFormError("User not found. Please check your email or username.")
+      } else if (error.message.includes("password")) {
+        setFormError("Incorrect password. Please try again.")
+      } else if (error.message.includes("disabled")) {
+        setFormError("This account has been disabled. Please contact support.")
+      } else if (error.message.includes("too many")) {
+        setFormError("Too many unsuccessful login attempts. Please try again later.")
       } else {
-        toast({
-          title: "Login failed",
-          description: error.message || "An unexpected error occurred. Please try again later.",
-          variant: "destructive",
-        })
+        setFormError(`Login failed: ${error.message || "Unknown error"}`)
       }
+    } finally {
+      setIsLoading(false)
     }
   }
 
@@ -130,6 +126,8 @@ export default function LoginPage() {
                 onChange={handleChange}
               />
             </div>
+
+            {formError && <AuthFormError message={formError} />}
           </CardContent>
           <CardFooter className="flex flex-col space-y-4">
             <Button type="submit" className="w-full" disabled={isLoading}>
